@@ -440,8 +440,7 @@ const agentDisc=()=>Math.max(.4,1-S.staff.agent*.07-(own('agency')?.15:0));
 const eqCost=k=>Math.round(300*Math.pow(8,S.equip[k])*(k==='stage'||k==='sec'?2:1));
 const stCost=k=>Math.round(400*Math.pow(2.6,S.staff[k]));
 const salary=()=>{let t=0;for(const k in S.staff)for(let i=0;i<S.staff[k];i++)t+=Math.round(400*Math.pow(2.6,i))*.004;return t};
-let resetting=false;
-function save(){if(S&&!resetting){S.last=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}}
+function save(){if(S){S.last=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}}
 function log(t,c=''){S.log.unshift({d:S.day,t,c});S.log=S.log.slice(0,120);$('ticker').textContent=t;if(tab==='log')render()}
 function toast(t,c=''){const e=document.createElement('div');e.className='toast '+c;e.textContent=t;$('toasts').appendChild(e);setTimeout(()=>e.remove(),4200);while($('toasts').children.length>3)$('toasts').firstChild.remove()}
 function floatTxt(t,col){const e=document.createElement('div');e.className='float';e.textContent=t;if(col)e.style.color=col;const b=$('scene').getBoundingClientRect();if(b.bottom<0||b.top>innerHeight)return;e.style.left=(b.left+b.width*.45)+'px';e.style.top=(b.top+b.height*.4)+'px';document.body.appendChild(e);setTimeout(()=>e.remove(),1500)}
@@ -1246,11 +1245,11 @@ $('pane').addEventListener('click',e=>{const a=e.target.closest('[data-a]');if(!
   case'film':showFilm(+id);break;
   case'editlogo':openLogoEditor(false);break;
   case'editchar':openCharEditor(false);break;
-  case'rename':askModal('Rename Studio','Enter a new name for your studio.','Rename',n=>{n=(n||'').trim();if(n){S.name=n.slice(0,30);refreshLogo();log(`The studio rebrands as ${S.name}.`);render()}},S.name);break;
+  case'rename':{const n=prompt('New studio name:',S.name);if(n&&n.trim()){S.name=n.trim().slice(0,30);refreshLogo();log(`The studio rebrands as ${S.name}.`);render()}break}
   case'angel':S.money+=1000;S.rep=clamp(S.rep-3,0,100);log('An angel investor backs the studio with $1,000.');render();break;
   case'eq':if(S.equip[k]<5&&spend(eqCost(k))){S.equip[k]++;log(`Upgraded ${EQUIP.find(x=>x.k===k).n} to Lv ${S.equip[k]}.`);toast(`${EQUIP.find(x=>x.k===k).n} → Lv ${S.equip[k]}`,'g');render()}break;
   case'hire':if(staffCount()<OFFICES[S.office].cap&&spend(stCost(k))){S.staff[k]++;const nm=person();log(`Hired ${nm} as ${STAFF.find(x=>x.k===k).n}.`);toast(`Welcome aboard, ${nm}!`,'g');render()}break;
-  case'fire':if(S.staff[k]>0)askModal('Let Staff Go?',`Let one ${STAFF.find(x=>x.k===k).n} go? This can't be undone.`,'Let go',()=>{if(S.staff[k]>0){S.staff[k]--;log(`A ${STAFF.find(x=>x.k===k).n} leaves the studio.`);render()}});break;
+  case'fire':if(S.staff[k]>0&&confirm('Let this staff member go?')){S.staff[k]--;log(`A ${STAFF.find(x=>x.k===k).n} leaves the studio.`);render()}break;
   case'office':{const nx=OFFICES[S.office+1];if(nx&&spend(nx.c)){S.office++;log(`${S.name} moves into ${nx.n}!`,'y');toast(`New HQ: ${nx.n}`,'g');floatTxt('NEW HQ!','#7cc4ff');render()}break}
   case'buyco':{const C=COMPANIES.find(x=>x.k===k);if(!S.companies[k]&&spend(C.c)){S.companies[k]={lv:1};log(`${S.name} acquires ${C.n}!`,'y');toast(`Acquired ${C.n}`,'g');render()}break}
   case'invest':{const C=COMPANIES.find(x=>x.k===k),o=S.companies[k];if(o&&o.lv<5&&spend(C.c*.6*o.lv)){o.lv++;log(`Invested in ${C.n} (Lv${o.lv}).`);render()}break}
@@ -1265,24 +1264,14 @@ $('pane').addEventListener('click',e=>{const a=e.target.closest('[data-a]');if(!
   case'borrow':{const amt=+v;if(amt>0&&amt<=loanCap()+1){S.debt+=amt;S.money+=amt;log(`Borrowed ${fmt(amt)}.`);render()}break}
   case'repay':{const amt=Math.min(+v,S.debt);if(spend(amt)){S.debt=Math.max(0,S.debt-amt);S.stats.exp-=amt;log(`Repaid ${fmt(amt)} of debt.`);render()}break}
   case'save':save();toast('Game saved','g');break;
-  case'reset':askModal('Start a New Game?',`This permanently deletes <b>${esc(S.name)}</b> and all its progress.`,'Delete & start over',newGameReset,null,true);break}});
-// in-game confirm / text prompt (browser pop-ups can be blocked in some viewers)
-let askCb=null;
-function askModal(title,text,okLabel,cb,inputVal,danger){askCb=cb;modalKind='ask';
- $('mbox').innerHTML=`<h2>${title}</h2><p style="margin:8px 0 14px">${text}</p>${inputVal!=null?`<input type="text" id="askIn" maxlength="30" value="${esc(inputVal)}" style="margin-bottom:14px">`:''}<div class="row"><button type="button" class="btn ghost" data-q="no">Cancel</button><button type="button" class="btn ${danger?'danger':''}" data-q="yes">${okLabel}</button></div>`;
- $('modal').classList.remove('hidden');const i=$('askIn');if(i){i.focus();i.select();i.addEventListener('keydown',ev=>{if(ev.key==='Enter')$('mbox').querySelector('[data-q=yes]').click()})}}
-function newGameReset(){resetting=true;try{localStorage.removeItem(KEY);localStorage.removeItem(OLDKEY)}catch(e){}
- S=null;W=null;started=false;tab='studio';document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.t==='studio'));
- $('pane').innerHTML='';$('hdrMark').innerHTML='';$('hdrName').textContent='Movie Studio Hero';$('ticker').textContent='Welcome to Los Angeles…';
- ['sMoney','sDate','sRep','sFans','sNet'].forEach(id=>$(id).textContent='-');logoImg=null;resetting=false;titleScreen()}
+  case'reset':if(confirm('Delete your studio and start over?')){localStorage.removeItem(KEY);localStorage.removeItem(OLDKEY);location.reload()}break}});
 $('mbox').addEventListener('click',e=>{
- if(modalKind==='ask'){const q=e.target.closest('[data-q]');if(!q)return;const cb=askCb,val=$('askIn')?$('askIn').value:null;askCb=null;$('modal').classList.add('hidden');modalKind=null;if(q.dataset.q==='yes'&&cb)cb(val);else if(S&&S.pending)showDecision();return}
  if(modalKind==='wiz'&&W){wizClick(e.target);return}
  if(modalKind==='logo'||modalKind==='char'){editorClick(e);return}
  if(modalKind==='dec'){const c=e.target.closest('[data-c]');if(c)resolveDecision(+c.dataset.c);return}
  if(modalKind==='decdone'){if(e.target.closest('[data-c]')){closeModal();render()}return}
  const m=e.target.closest('[data-m]');if(!m)return;if(m.dataset.m==='close')closeModal();if(m.dataset.m==='sequel')sequel(+m.dataset.id)});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S&&['wiz','film','logo','char','ask'].includes(modalKind)&&!edFirstActive())closeModal()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S&&['wiz','film','logo','char'].includes(modalKind)&&!edFirstActive())closeModal()});
 const edFirstActive=()=>(modalKind==='logo'||modalKind==='char')&&edFirst;
 
 // ===================== PIXEL SCENE =====================
@@ -1377,9 +1366,8 @@ function titleScreen(){modalKind='title';$('mbox').innerHTML=`<div class="ts"><d
  const go=()=>{const nm=($('studioName').value.trim()||pick(['Lucky Reel','Blue Palm','Starlight Garage','Golden Coast'])+' Pictures').slice(0,30);const words=nm.split(' ');
   newGame={name:nm,logo:{text:words[0].slice(0,14),sub:(words.slice(1).join(' ')||'PICTURES').slice(0,20)}};openLogoEditor(true)};
  $('startBtn').addEventListener('click',go);$('studioName').addEventListener('keydown',e=>{if(e.key==='Enter')go()});setTimeout(()=>$('studioName').focus(),50)}
-let acc=0,started=false,timers=false;
-function start(){if(started)return;started=true;acc=0;refreshLogo();render();if(S.pending)showDecision();
- if(timers)return;timers=true;
+let acc=0,started=false;
+function start(){if(started)return;started=true;refreshLogo();render();if(S.pending)showDecision();
  setInterval(()=>{if(!S)return;acc+=S.speed*.25;let n=0;while(acc>=1&&n<8){acc-=1;n++;tickDay()}if(S.speed===0)acc=0},250);setInterval(save,5000)}
 try{let d=JSON.parse(localStorage.getItem(KEY)||'null');
  if(!d){const old=JSON.parse(localStorage.getItem(OLDKEY)||'null');if(old&&old.name&&old.v===3)d=migrate(old)}
